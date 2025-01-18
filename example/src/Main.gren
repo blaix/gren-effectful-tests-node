@@ -1,0 +1,22 @@
+module Main exposing (main)
+
+
+import Task
+import Test exposing (describe, test)
+import Expect
+import Test.Runner.Effectful exposing (Program, await, run)
+import Time
+
+
+main : Program
+main = run
+    [ await Time.now "test that depends on result of a task" <| \now ->
+        describe "nest a full test suite if you want"
+            [ test "test that fails" <| \_ ->
+                Expect.equal (Time.millisToPosix 0) now
+            ]
+
+    , await (Task.fail "oops") "task that fails" <| \_ ->
+        test "the suite will fail and this test will never run" <| \_ ->
+            Expect.equal True True
+    ]

@@ -1,0 +1,120 @@
+module Test.Runner.Log exposing
+    ( runWithOptions
+    , logOutput
+    )
+
+{-| Log Runner
+
+This will log the test results to the console, then exit with exit code 0
+if the tests all passed, and 1 if any failed.
+
+@docs run, runWithOptions
+
+-}
+
+import Random
+import Test.Runner.String exposing (Summary)
+import String
+import Test exposing (Test)
+import Stream
+import Node
+import Task exposing (Task)
+import Bytes exposing (Bytes)
+
+
+type alias OutputStreams =
+    { reportStreamOnPass : Stream.Writable Bytes
+    , reportStreamOnFail : Stream.Writable Bytes
+    , colorDepth : Int
+    }
+
+
+type Color
+    = NoColor
+    | Green
+    | Red
+
+
+{-| Run the test using the provided options.
+-}
+runWithOptions : OutputStreams -> Int -> Random.Seed -> Test -> Task Never {}
+runWithOptions streams runs seed test =
+    Test.Runner.String.runWithOptions runs seed test
+        |> logOutput streams
+ 
+
+summarize : Summary -> Int -> String
+summarize { output, passed, failed, autoFail } colorDepth =
+    let
+        headline =
+            if failed > 0 then
+                "TEST RUN FAILED"
+                    |> colorize colorDepth Red
+
+            else
+                when autoFail is
+                    Nothing ->
+                        "TEST RUN PASSED"
+                            |> colorize colorDepth Green
+
+                    Just reason ->
+                        "TEST RUN FAILED because " ++ reason
+                            |> colorize colorDepth Red
+    in
+    String.join "\n"
+        [ output
+        , headline ++ "\n"
+        , "Passed: " ++ String.fromInt passed
+        , "Failed: " ++ String.fromInt failed
+        ]
+
+
+logOutput : OutputStreams -> Summary -> Task Never {}
+logOutput streams summary =
+    let
+        output =
+            summarize summary streams.colorDepth
+
+        { printStream, exitCode } =
+            if summary.failed > 0 || summary.autoFail /= Nothing then
+                { printStream = streams.reportStreamOnFail
+                , exitCode = 1
+                }
+
+            else
+                { printStream = streams.reportStreamOnPass
+                , exitCode = 0
+                }
+    in
+    Stream.writeLineAsBytes output printStream
+        |> Task.andThen (\_ -> Node.exitWithCode exitCode)
+        |> Task.onError (\_ -> Node.exitWithCode 1)
+
+
+colorize : Int -> Color -> String -> String
+colorize colorDepth color string =
+    if colorDepth > 1 then
+        String.join ""
+            [ setColor color
+            , string
+            , setColor NoColor
+            ]
+    else
+        string
+
+
+setColor : Color -> String
+setColor color =
+    String.join ""
+        [ "\u{001b}["
+        , colorCode color
+        , "m"
+        ]
+
+
+colorCode : Color -> String
+colorCode color =
+    when color is
+        NoColor -> "39"
+        Green -> "32"
+        Red -> "31"

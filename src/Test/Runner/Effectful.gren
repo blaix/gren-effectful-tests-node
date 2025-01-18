@@ -1,0 +1,80 @@
+module Test.Runner.Effectful exposing (Program, await, run)
+
+{-| Functions for running Gren integration tests that depend on the actual results of tasks.
+
+@docs run, await, Program
+-}
+
+import Expect
+import Init
+import Node
+import Random
+import Task exposing (Task)
+import Terminal
+import Test exposing (Test)
+import Test.Runner.Log as Log
+import Test.Runner.Node
+import Time
+
+
+{-| Type alias for a program defined with [run](#run).
+-}
+type alias Program =
+    Test.Runner.Node.Program
+
+
+{-| Create the program that runs your tests.
+
+It takes an array of values defined with [await](#await)
+and returns a program that can be run as your `main` function.
+-}
+run : Array (Task Never Test) -> Program
+run tasks =
+    Node.defineSimpleProgram <| \env ->
+        Init.awaitTask Time.now <| \time ->
+        Init.await Terminal.initialize <| \termConfig ->
+            tasks
+                |> Task.sequence
+                |> Task.map (Test.describe "Effectful test suite")
+                |> Task.andThen
+                    ( Log.runWithOptions
+                        { reportStreamOnPass = env.stdout
+                        , reportStreamOnFail = env.stderr
+                        , colorDepth = getColorDepth termConfig 
+                        }
+                        100
+                        (Random.initialSeed (Time.posixToMillis time))
+                    )
+                |> Node.endSimpleProgram
+
+
+{-| Await the results of a task and run tests that depend on the result.
+
+    await Time.now "The current time" <| \now ->
+        test "is not January 1, 1970" \_ ->
+            Expect.notEqual (Time.millisToPosix 0) now
+-}
+await : Task error a -> String -> (a -> Test) -> Task Never Test
+await task description callback =
+    task
+        |> Task.map callback
+        |> Task.andThen 
+            (\test -> 
+                Task.succeed <|
+                    Test.describe description [ test ]
+            )
+        |> Task.onError
+            (\e -> 
+                Task.succeed <|
+                    Test.test description <| \_ ->
+                        Expect.fail ("Task failed with: " ++ Debug.toString e)
+            )
+
+
+getColorDepth : Maybe Terminal.Configuration -> Int
+getColorDepth config =
+    when config is
+        Just { colorDepth } ->
+            colorDepth
+        Nothing ->
+            1 -- lowest color depth (no colors)
