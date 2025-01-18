@@ -2,7 +2,7 @@
 
 Run [Gren](https://gren-lang.org/) integration tests that depend on the actual results of [tasks](https://gren-lang.org/book/applications/tasks/).
 
-See the full API on [the package site](https://packages.gren-lang.org/package/blaix/gren-effectful-tests).
+See the full API on [the package site](https://packages.gren-lang.org/package/blaix/gren-effectful-tests-node).
 
 ## Example
 
