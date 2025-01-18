@@ -4,19 +4,23 @@ module Main exposing (main)
 import Task
 import Test exposing (describe, test)
 import Expect
-import Test.Runner.Effectful exposing (Program, await, run)
+import Test.Runner.Effectful exposing (Program, run, await, expectError)
 import Time
 
 
 main : Program
 main = run
-    [ await Time.now "test that depends on result of a task" <| \now ->
+    [ await Time.now "write tests that depend on result of task" <| \now ->
         describe "nest a full test suite if you want"
-            [ test "test that fails" <| \_ ->
-                Expect.equal (Time.millisToPosix 0) now
+            [ test "it is not Jan 1, 1970" <| \_ ->
+                Expect.notEqual (Time.millisToPosix 0) now
             ]
 
-    , await (Task.fail "oops") "task that fails" <| \_ ->
+    , await (Task.fail "oops") "task that fails unexpectedly" <| \_ ->
         test "the suite will fail and this test will never run" <| \_ ->
             Expect.equal True True
+
+    , expectError (Task.fail "failure") "task that you expect to fail" <| \error ->
+        test "make assertions on errors" <| \_ ->
+            Expect.equal "failure" error
     ]

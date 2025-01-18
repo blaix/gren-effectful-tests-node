@@ -26,6 +26,10 @@ main = run
     , await (Task.fail "oops") "task that fails" <| \_ ->
         test "the suite will fail and this test will never run" <| \_ ->
             Expect.equal True True
+
+    , expectError (Task.fail "failure") "task that you expect to fail" <| \error ->
+        test "make assertions on errors" <| \_ ->
+            Expect.equal "failure" error
     ]
 ```
 

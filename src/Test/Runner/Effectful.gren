@@ -1,8 +1,8 @@
-module Test.Runner.Effectful exposing (Program, await, run)
+module Test.Runner.Effectful exposing (Program, run, await, expectError)
 
 {-| Functions for running Gren integration tests that depend on the actual results of tasks.
 
-@docs run, await, Program
+@docs run, await, expectError, Program
 -}
 
 import Expect
@@ -58,10 +58,10 @@ await : Task error a -> String -> (a -> Test) -> Task Never Test
 await task description callback =
     task
         |> Task.map callback
-        |> Task.andThen 
-            (\test -> 
-                Task.succeed <|
-                    Test.describe description [ test ]
+        |> Task.andThen
+            (\test ->
+                Test.describe description [ test ]
+                    |> Task.succeed
             )
         |> Task.onError
             (\e -> 
@@ -69,6 +69,26 @@ await task description callback =
                     Test.test description <| \_ ->
                         Expect.fail ("Task failed with: " ++ Debug.toString e)
             )
+
+
+{-| Await task that you expect to fail and run tests that depend on the error value.
+
+    expectError (Task.fail "oopsy") "An expected failure" <| \error ->
+        test "is an oopsy" \_ ->
+            Expect.equal "oopsy" error
+-}
+expectError : Task error a -> String -> (error -> Test) -> Task Never Test
+expectError task description callback =
+    task
+        |> Task.map
+            (\a ->
+                Test.test description <| \_ ->
+                    Expect.fail
+                        ( "Expected error, but got non-error value: "
+                            |> String.append (Debug.toString a)
+                        )
+            )
+        |> Task.onError (callback >> Task.succeed)
 
 
 getColorDepth : Maybe Terminal.Configuration -> Int
