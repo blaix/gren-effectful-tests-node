@@ -12,7 +12,7 @@ module Main exposing (main)
 import Task
 import Test exposing (describe, test)
 import Expect
-import Test.Runner.Effectful exposing (Program, await, run)
+import Test.Runner.Effectful exposing (Program, await, awaitError, run)
 import Time
 
 main : Program
@@ -27,7 +27,7 @@ main = run
         test "the suite will fail and this test will never run" <| \_ ->
             Expect.equal True True
 
-    , expectError (Task.fail "failure") "task that you expect to fail" <| \error ->
+    , awaitError (Task.fail "failure") "task that you expect to fail" <| \error ->
         test "make assertions on errors" <| \_ ->
             Expect.equal "failure" error
     ]

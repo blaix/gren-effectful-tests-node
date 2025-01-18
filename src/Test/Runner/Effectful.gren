@@ -1,8 +1,8 @@
-module Test.Runner.Effectful exposing (Program, run, await, expectError)
+module Test.Runner.Effectful exposing (Program, run, await, awaitError)
 
 {-| Functions for running Gren integration tests that depend on the actual results of tasks.
 
-@docs run, await, expectError, Program
+@docs run, await, awaitError, Program
 -}
 
 import Expect
@@ -73,12 +73,12 @@ await task description callback =
 
 {-| Await task that you expect to fail and run tests that depend on the error value.
 
-    expectError (Task.fail "oopsy") "An expected failure" <| \error ->
+    awaitError (Task.fail "oopsy") "An expected failure" <| \error ->
         test "is an oopsy" \_ ->
             Expect.equal "oopsy" error
 -}
-expectError : Task error a -> String -> (error -> Test) -> Task Never Test
-expectError task description callback =
+awaitError : Task error a -> String -> (error -> Test) -> Task Never Test
+awaitError task description callback =
     task
         |> Task.map
             (\a ->
