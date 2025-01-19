@@ -1,14 +1,9 @@
-module Test.Runner.Log exposing
-    ( runWithOptions
-    , logOutput
-    )
+module Test.Runner.Log exposing (run)
 
 {-| Log Runner
 
 This will log the test results to the console, then exit with exit code 0
 if the tests all passed, and 1 if any failed.
-
-@docs run, runWithOptions
 
 -}
 
@@ -22,10 +17,13 @@ import Task exposing (Task)
 import Bytes exposing (Bytes)
 
 
-type alias OutputStreams =
-    { reportStreamOnPass : Stream.Writable Bytes
-    , reportStreamOnFail : Stream.Writable Bytes
+type alias RunConfig =
+    { passStream : Stream.Writable Bytes
+    , failStream : Stream.Writable Bytes
     , colorDepth : Int
+    , runs : Int
+    , seed : Random.Seed
+    , test : Test
     }
 
 
@@ -35,12 +33,29 @@ type Color
     | Red
 
 
-{-| Run the test using the provided options.
--}
-runWithOptions : OutputStreams -> Int -> Random.Seed -> Test -> Task Never {}
-runWithOptions streams runs seed test =
-    Test.Runner.String.runWithOptions runs seed test
-        |> logOutput streams
+run : RunConfig -> Task Never {}
+run { passStream, failStream, colorDepth, runs, seed, test } =
+    let
+        summary =
+            Test.Runner.String.runWithOptions runs seed test
+
+        output =
+            summarize summary colorDepth
+
+        { stream, exitCode } =
+            if summary.failed > 0 || summary.autoFail /= Nothing then
+                { stream = failStream
+                , exitCode = 1
+                }
+
+            else
+                { stream = passStream
+                , exitCode = 0
+                }
+    in
+    Stream.writeLineAsBytes output stream
+        |> Task.andThen (\_ -> Node.exitWithCode exitCode)
+        |> Task.onError (\_ -> Node.exitWithCode 1)
  
 
 summarize : Summary -> Int -> String
@@ -67,28 +82,6 @@ summarize { output, passed, failed, autoFail } colorDepth =
         , "Passed: " ++ String.fromInt passed
         , "Failed: " ++ String.fromInt failed
         ]
-
-
-logOutput : OutputStreams -> Summary -> Task Never {}
-logOutput streams summary =
-    let
-        output =
-            summarize summary streams.colorDepth
-
-        { printStream, exitCode } =
-            if summary.failed > 0 || summary.autoFail /= Nothing then
-                { printStream = streams.reportStreamOnFail
-                , exitCode = 1
-                }
-
-            else
-                { printStream = streams.reportStreamOnPass
-                , exitCode = 0
-                }
-    in
-    Stream.writeLineAsBytes output printStream
-        |> Task.andThen (\_ -> Node.exitWithCode exitCode)
-        |> Task.onError (\_ -> Node.exitWithCode 1)
 
 
 colorize : Int -> Color -> String -> String

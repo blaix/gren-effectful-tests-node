@@ -1,9 +1,59 @@
-module Test.Runner.Effectful exposing (Program, run, await, awaitError)
+module Test.Runner.Effectful exposing 
+    ( Program
+    , Test
+    , init
+    , run
+    , thenRun
+    , join
+    , pure
+    , await
+    , awaitError
+    )
 
 {-| Functions for running Gren integration tests that depend on the actual results of tasks.
 
-@docs run, await, awaitError, Program
+## Running Tests
+
+@docs run, await, awaitError, join, pure
+
+## Accessing the Environment and Subsystems
+
+Sometimes tasks might require a permission value from a [subsystem](https://packages.gren-lang.org/package/gren-lang/node/version/latest/module/Init)
+like the [FileSystem](https://packages.gren-lang.org/package/gren-lang/node/version/latest/module/FileSystem)
+or [HttpClient](https://packages.gren-lang.org/package/gren-lang/node/version/latest/module/HttpClient).
+
+Or maybe you need the [Node.Environment](https://packages.gren-lang.org/package/gren-lang/node/version/latest/module/Node#Environment)
+to check the platform or incoming command line arguments.
+
+You can do that by replacing [run](#run) with [init](#init) and [thenRun](#thenRun).
+It would look like this:
+
+    main : Effectful.Program a
+    main = 
+        init <| \env ->
+            Init.await FileSystem.initialize <| \fsPerm->
+            Init.await HttpClient.initialize <| \httpPerm->
+                thenRun env <|
+                    await (myTask fsPerm httpPerm) "my task" <| \val ->
+                        test "my test" <| \_ ->
+                            Expect.equal "something" val
+
+@docs init, thenRun
+
+## Type aliases
+
+@docs Program, Test
 -}
+
+------------------------------------------------------------------------------
+-- IMPORTANT: Choose names that don't conflict with the core test package.
+-- There's nothing technically preventing this, but it would avoid confusion
+-- since most of these functions wrap tests from the core package.
+------------------------------------------------------------------------------
+
+------------------------------------------------------------------------------
+-- TODO: runWithOptions
+------------------------------------------------------------------------------
 
 import Expect
 import Init
@@ -11,50 +61,116 @@ import Node
 import Random
 import Task exposing (Task)
 import Terminal
-import Test exposing (Test)
+import Test
 import Test.Runner.Log as Log
 import Test.Runner.Node
 import Time
 
 
-{-| Type alias for a program defined with [run](#run).
+{-| Type alias for a program that runs your effectful [Test](#Test) suite.
 -}
-type alias Program =
-    Test.Runner.Node.Program
+type alias Program a =
+    Node.SimpleProgram a
 
 
-{-| Create the program that runs your tests.
+{-| Type alias for an "effectful test".
 
-It takes an array of values defined with [await](#await)
-and returns a program that can be run as your `main` function.
+This is just a task that always resolves to a core test.
+
+Normally you'd get this by wrapping a test from the [core test package](https://packages.gren-lang.org/package/gren-lang/test/version/latest/module/Test#Test)
+with a call to [await](#await) or one of the similar functions in this package.
+
+Tests can be combined with other tests using [join](#join),
+and turned into a runnable program with [run](#run).
+
+Tests from the core package can be turned into an effectful test directly with [pure](#pure).
 -}
-run : Array (Task Never Test) -> Program
-run tasks =
+type alias Test =
+    Task Never Test.Test
+
+
+{-| Create a program that runs your effectful [Test](#Test) suite.
+
+This will normally be used as your `main` function:
+
+    main =
+        run <|
+            await (Task.succeed "hi") "my test" <| \val ->
+                test "my test" <| \_ ->
+                    Expect.equal "hi" val
+-}
+run : Test -> Program a
+run testTask =
     Node.defineSimpleProgram <| \env ->
-        Init.awaitTask Time.now <| \time ->
-        Init.await Terminal.initialize <| \termConfig ->
-            tasks
-                |> Task.sequence
-                |> Task.map (Test.describe "Effectful test suite")
-                |> Task.andThen
-                    ( Log.runWithOptions
-                        { reportStreamOnPass = env.stdout
-                        , reportStreamOnFail = env.stderr
-                        , colorDepth = getColorDepth termConfig 
-                        }
-                        100
-                        (Random.initialSeed (Time.posixToMillis time))
-                    )
-                |> Node.endSimpleProgram
+        thenRun env testTask
 
 
-{-| Await the results of a task and run tests that depend on the result.
+{-| Allows you to wait for [Init tasks](https://packages.gren-lang.org/package/gren-lang/node/version/latest/module/Init)
+before running tests.
 
-    await Time.now "The current time" <| \now ->
-        test "is not January 1, 1970" \_ ->
-            Expect.notEqual (Time.millisToPosix 0) now
+The body of the innermost init task should contain a call to [thenRun](#thenRun).
+See above for an example.
 -}
-await : Task error a -> String -> (a -> Test) -> Task Never Test
+init : (Node.Environment -> Init.Task (Cmd a)) -> Program a
+init =
+    Node.defineSimpleProgram
+
+
+{-| Define a [Test](#Test) suite that should run after initializing subsystems.
+
+The semantics of this functino are equivalent to [run](#run),
+except it gives you an Init task 
+-}
+thenRun : Node.Environment -> Test -> Init.Task (Cmd a)
+thenRun env testTask =
+    Init.await Terminal.initialize <| \termConfig ->
+    Init.awaitTask Time.now <| \time ->
+    Init.awaitTask testTask <| \test ->
+        Node.endSimpleProgram <|
+            Log.run
+                { test = test
+                , runs = 100
+                , passStream = env.stdout
+                , failStream = env.stderr
+                , colorDepth = getColorDepth termConfig 
+                , seed = Random.initialSeed (Time.posixToMillis time)
+                }
+
+
+{-| Group an array of [Test](#Test)s into one.
+
+These can be nested.
+-}
+join : Array Test -> Test
+join tests =
+    tests
+        |> Task.sequence
+        |> Task.map Test.concat
+
+
+{-| Wrap a non-effectful test to include it in your effectful test suite.
+
+    pure <|
+        test "test that doesn't need a task" <| \_ ->
+            Expect.equal True True
+-}
+pure : Test.Test -> Test
+pure =
+    Task.succeed
+
+
+{-| Lets you wait for a task to resolve before running a test.
+
+Use this by wrapping a test from the [core test package](https://packages.gren-lang.org/package/gren-lang/test/version/latest/module/Test#Test):
+
+    await Time.now "Current time" <| \now ->
+        Test.test "is not Jan 1, 1970" <| \_ ->
+            Expect.notEqual (Time.millisToPosix 0) now
+
+If the task fails, the inner test won't run and the test suite will fail.
+If you want to test the error condition of a task, use [awaitError](#awaitError).
+-}
+await : Task error a -> String -> (a -> Test.Test) -> Test
 await task description callback =
     task
         |> Task.map callback
@@ -71,13 +187,15 @@ await task description callback =
             )
 
 
-{-| Await task that you expect to fail and run tests that depend on the error value.
+{-| Test tasks that you expect to fail:
 
     awaitError (Task.fail "oopsy") "An expected failure" <| \error ->
         test "is an oopsy" \_ ->
             Expect.equal "oopsy" error
+
+If the task does not fail, the inner test won't run and the test suite will fail.
 -}
-awaitError : Task error a -> String -> (error -> Test) -> Task Never Test
+awaitError : Task error a -> String -> (error -> Test.Test) -> Test
 awaitError task description callback =
     task
         |> Task.map

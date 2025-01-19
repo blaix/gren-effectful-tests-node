@@ -1,26 +1,51 @@
 module Main exposing (main)
 
 
-import Task
-import Test exposing (describe, test)
+import Bytes
+import FileSystem
+import FileSystem.Path as Path
 import Expect
-import Test.Runner.Effectful exposing (Program, run, await, awaitError)
+import Init
+import Task exposing (Task)
+import Test exposing (test)
+import Test.Runner.Effectful as Effectful exposing (..)
+import Terminal
 import Time
 
 
-main : Program
-main = run
-    [ await Time.now "write tests that depend on result of task" <| \now ->
-        describe "nest a full test suite if you want"
-            [ test "it is not Jan 1, 1970" <| \_ ->
-                Expect.notEqual (Time.millisToPosix 0) now
-            ]
+readTestFile : FileSystem.Permission -> Task FileSystem.Error (Maybe String)
+readTestFile permission =
+    "./test.txt"
+        |> Path.fromPosixString
+        |> FileSystem.readFile permission
+        |> Task.map Bytes.toString
 
-    , await (Task.fail "oops") "task that fails unexpectedly" <| \_ ->
-        test "the suite will fail and this test will never run" <| \_ ->
-            Expect.equal True True
 
-    , awaitError (Task.fail "failure") "task that you expect to fail" <| \error ->
-        test "make assertions on errors" <| \_ ->
-            Expect.equal "failure" error
-    ]
+main : Effectful.Program a
+main = 
+    init <| \env ->
+        Init.await FileSystem.initialize <| \fsPermission ->
+        -- You can initialize other subsystems here too:
+        -- Init.await Terminal.initialize <| \termConfig ->
+
+        thenRun env <|
+            join
+                [ await (readTestFile fsPermission) "reading file" <| \contents ->
+                    test "returns the contents" <| \_ ->
+                        Expect.equal (Just "some text\n") contents
+
+                -- join can nest
+                , join
+                    [ awaitError (Task.fail "failure") "Expected errors" <| \error ->
+                        Test.test "can be tested" <| \_ ->
+                            Expect.equal "failure" error
+
+                    -- , await (Task.fail "oops") "Unexpected error" <| \contents ->
+                    --     test "will fail the suite and skip the test" <| \_ ->
+                    --         Expect.equal True True
+                    
+                    , pure <|
+                        test "test that doesn't need a task" <| \_ ->
+                            Expect.equal True True
+                    ]
+                ]
