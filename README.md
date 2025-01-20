@@ -151,10 +151,10 @@ main =
                 join
                     [ await (readTestFile fsPerm) "reading test.txt" <| \contents ->
                         test "resolves to contents of file" <| \_ ->
-                            Expect.equal "some text\n" content
+                            Expect.equal (Just "some text\n") content
                     , await (catTestFile processPerm) "cat test.txt" <| \contents ->
                         test "also resolves to contents of file" <| \_ ->
-                            Expect.equal "some text\n" content
+                            Expect.equal (Just "some text\n") content
                     ]
 
 
@@ -166,7 +166,7 @@ readTestFile permission =
         |> Task.map Bytes.toString
 
 
-catTestFile : ChildProcess.Permission -> Task ChildProcess.FailedRun ChildProcess.SuccessfulRun
+catTestFile : ChildProcess.Permission -> Task ChildProcess.FailedRun (Maybe String)
 catTestFile permission =
     ChildProcess.run permission "cat" [ "test.txt" ] ChildProcess.defaultRunOptions
         |> Task.map .stdout
