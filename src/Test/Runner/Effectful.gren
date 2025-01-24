@@ -1,61 +1,25 @@
 module Test.Runner.Effectful exposing 
     ( Program
+
+    -- TESTS
     , Test
+    , test
+    , concat
+    , describe
     , init
-    , run
-    , thenRun
-    , join
-    , pure
+
+    -- TASKS
     , await
     , awaitError
+
+    -- RUN
+    , run
+    , thenRun
+    -- TODO: runWithOptions
     )
 
-{-| Functions for running Gren integration tests that depend on the actual results of tasks.
 
-## Running Tests
-
-@docs run, await, awaitError, join, pure
-
-## Accessing the Environment and Subsystems
-
-Sometimes tasks might require a permission value from a [subsystem](https://packages.gren-lang.org/package/gren-lang/node/version/latest/module/Init)
-like the [FileSystem](https://packages.gren-lang.org/package/gren-lang/node/version/latest/module/FileSystem)
-or [HttpClient](https://packages.gren-lang.org/package/gren-lang/node/version/latest/module/HttpClient).
-
-Or maybe you need the [Node.Environment](https://packages.gren-lang.org/package/gren-lang/node/version/latest/module/Node#Environment)
-to check the platform or incoming command line arguments.
-
-You can do that by replacing [run](#run) with [init](#init) and [thenRun](#thenRun).
-It would look like this:
-
-    main : Effectful.Program a
-    main = 
-        init <| \env ->
-            Init.await FileSystem.initialize <| \fsPerm->
-            Init.await HttpClient.initialize <| \httpPerm->
-                thenRun env <|
-                    await (myTask fsPerm httpPerm) "my task" <| \val ->
-                        test "my test" <| \_ ->
-                            Expect.equal "something" val
-
-@docs init, thenRun
-
-## Type aliases
-
-@docs Program, Test
--}
-
-------------------------------------------------------------------------------
--- IMPORTANT: Choose names that don't conflict with the core test package.
--- There's nothing technically preventing this, but it would avoid confusion
--- since most of these functions wrap tests from the core package.
-------------------------------------------------------------------------------
-
-------------------------------------------------------------------------------
--- TODO: runWithOptions
-------------------------------------------------------------------------------
-
-import Expect
+import Expect exposing (Expectation)
 import Init
 import Node
 import Random
@@ -73,20 +37,171 @@ type alias Program a =
     Node.SimpleProgram a
 
 
-{-| Type alias for an "effectful test".
+{-| Alias for a test in an effectful test suite.
 
-This is just a task that always resolves to a core test.
-
-Normally you'd get this by wrapping a test from the [core test package](https://packages.gren-lang.org/package/gren-lang/test/version/latest/module/Test#Test)
-with a call to [await](#await) or one of the similar functions in this package.
-
-Tests can be combined with other tests using [join](#join),
-and turned into a runnable program with [run](#run).
-
-Tests from the core package can be turned into an effectful test directly with [pure](#pure).
+You can create Tests with [test](#test) and wrap them in 0 or more [await](#await)s.
 -}
 type alias Test =
-    Task Never Test.Test
+    Task Never (InternalTest {})
+
+
+type InternalTest a
+    = Box a
+    | Ready Test.Test
+
+
+unwrap : InternalTest a -> Test.Test
+unwrap internalTest =
+    when internalTest is
+        Ready t ->
+            t
+        Box _ ->
+            -- This should never happen...
+            -- Any way to refactor it away?
+            Test.test "Unexpected error" <| \_ ->
+                Expect.fail
+                    """
+                    Oops! Something weird happened and you reached a point in
+                    the code that I thought was unreachable. Congrats! But
+                    also... sorry about that. It would be great if you could
+                    open an issue so I can figure out how this happened:
+                    https://github.com/blaix/gren-effectful-tests-node/issues
+                    Please include the test(s) that triggered this error.
+                    """
+
+
+-- CREATING TESTS
+
+
+{-| Create a standard test. Semantics are the same as `test` from the
+[core package](https://packages.gren-lang.org/package/gren-lang/test/version/latest/module/Test#test):
+
+    test "my test" <| \_ ->
+        Expect.equal True True
+
+except it can optionally be nested in an [await](#await):
+
+    await Time.now "The current time" <| \now ->
+        test "is not Jan 1, 1970" <| \_ ->
+            Expect.notEqual (Time.millisToPosix 0) now
+
+Note: with this runner, you must use this test function,
+not the test function from the core package.
+-}
+test : String -> ({} -> Expectation) -> Test
+test description thunk =
+    Test.test description thunk
+        |> Ready
+        |> Task.succeed
+
+
+{-| Group an array of [Test](#Test)s into one.
+
+Passing an empty array will result in a failing test, because you either made a mistake or are creating a placeholder.
+-}
+concat : Array Test -> Test
+concat tests =
+    tests
+        |> Array.map (Task.map unwrap)
+        |> Task.sequence
+        |> Task.map Test.concat
+        |> Task.map Ready
+
+
+{-| Group an array of [Test](#Test)s with a description.
+
+Passing an empty array will result in a failing test, because you either made a mistake or are creating a placeholder.
+-}
+describe : String -> Array Test -> Test
+describe description tests =
+    tests
+        |> Array.map (Task.map unwrap)
+        |> Task.sequence
+        |> Task.map (Test.describe description)
+        |> Task.map Ready
+
+
+-- RESOLVING TASKS
+
+
+{-| Wait for a task to resolve before running a test.
+
+    await Time.now "Current time" <| \now ->
+        test "is not Jan 1, 1970" <| \_ ->
+            Expect.notEqual (Time.millisToPosix 0) now
+
+If the task fails, the inner test won't run and the test suite will fail.
+If you want to test the error condition of a task, use [awaitError](#awaitError).
+
+You can nest as many awaits as you want:
+
+    await (Task.succeed "a") "task a" <| \a ->
+    await (Task.succeed "b") "task b" <| \b ->
+        test "are not equal" <| \_ ->
+            Expect.notEqual a b
+-}
+await : Task error a -> String -> (a -> Test) -> Test
+await task description callback =
+    task
+        |> Task.map Box
+        |> Task.onError 
+            (\e -> 
+                (\_ -> Expect.fail ("Task failed with: " ++ (Debug.toString e)))
+                    |> Test.test description
+                    |> Ready
+                    |> Task.succeed
+            )
+        |> Task.andThen (map callback)
+        -- TODO: am I double wrapping description?
+        |> Task.andThen (wrapDescription description)
+
+
+{-| Test the error state of a task.
+
+    awaitError (Task.fail "oopsy") "An expected failure" <| \error ->
+        test "is an oopsy" \_ ->
+            Expect.equal "oopsy" error
+
+If the task does not fail, the inner test won't run and the test suite will fail.
+
+These can be nested just like and alongside [await](#await)s.
+-}
+awaitError : Task error a -> String -> (error -> Test) -> Test
+awaitError task description callback =
+    task
+        |> Task.map Box
+        |> Task.andThen 
+            (\a -> 
+                (\_ -> Expect.fail ("Expected error, but got non-error value: " ++ (Debug.toString a)))
+                    |> Test.test description
+                    |> Ready
+                    |> Task.succeed
+            )
+        |> Task.onError callback
+        -- TODO: am I double wrapping description?
+        |> Task.andThen (wrapDescription description)
+
+
+map : (a -> Test) -> InternalTest a -> Test
+map fn internalTest =
+    when internalTest is
+        Box a ->
+            fn a
+        Ready t ->
+            Task.succeed (Ready t)
+
+
+wrapDescription : String -> InternalTest a -> Test
+wrapDescription description internalTest =
+    internalTest
+        |> unwrap
+        |> Array.singleton
+        |> Test.describe description
+        |> Ready
+        |> Task.succeed
+
+
+-- RUNNING TESTS
 
 
 {-| Create a program that runs your effectful [Test](#Test) suite.
@@ -95,40 +210,55 @@ This will normally be used as your `main` function:
 
     main =
         run <|
-            await (Task.succeed "hi") "my test" <| \val ->
+            await (Task.succeed "hi") "my task" <| \val ->
                 test "my test" <| \_ ->
                     Expect.equal "hi" val
+
+Note: The test suite must be created with the test functions from this package,
+not the core test package.
 -}
 run : Test -> Program a
-run testTask =
+run t =
     Node.defineSimpleProgram <| \env ->
-        thenRun env testTask
+        thenRun env t
 
 
-{-| Allows you to wait for [Init tasks](https://packages.gren-lang.org/package/gren-lang/node/version/latest/module/Init)
-before running tests.
+{-| Gives your test suite access to
+[Node.Environment](https://packages.gren-lang.org/package/gren-lang/node/version/latest/module/Node#Environment)
+and [subsystem permissions](https://packages.gren-lang.org/package/gren-lang/node/version/latest/module/Init).
 
-The body of the innermost init task should contain a call to [thenRun](#thenRun).
-See above for an example.
+This call will wrap your test suite, which will need to be run with
+[thenRun](#thenRun) instead of [run](#run). For example:
+
+    main =
+        init <| \env ->
+            FileSystem.initialize <| \fsPerm ->
+            HttpClient.initialize <| \httpPerm ->
+                thenRun env <|
+                    await (myReadTask fsPerm) "read file" <| \contents ->
+                    await (myHttpTask httpPerm) "send contents" <| \response ->
+                        test "is successfull" <| \_ ->
+                            Expect.equal 200 response.statusCode
 -}
 init : (Node.Environment -> Init.Task (Cmd a)) -> Program a
 init =
     Node.defineSimpleProgram
 
 
-{-| Define a [Test](#Test) suite that should run after initializing subsystems.
+{-| Define the [Test](#Test) suite that should run after initializing subsystems.
 
 The semantics of this functino are equivalent to [run](#run),
-except it gives you an Init task 
+except it takes [Node.Environment](https://packages.gren-lang.org/package/gren-lang/node/version/latest/module/Node#Environment)
+in addition to the test suite.
 -}
 thenRun : Node.Environment -> Test -> Init.Task (Cmd a)
 thenRun env testTask =
     Init.await Terminal.initialize <| \termConfig ->
     Init.awaitTask Time.now <| \time ->
-    Init.awaitTask testTask <| \test ->
+    Init.awaitTask testTask <| \t ->
         Node.endSimpleProgram <|
             Log.run
-                { test = test
+                { test = unwrap t
                 , runs = 100
                 , passStream = env.stdout
                 , failStream = env.stderr
@@ -137,76 +267,7 @@ thenRun env testTask =
                 }
 
 
-{-| Group an array of [Test](#Test)s into one.
-
-These can be nested.
--}
-join : Array Test -> Test
-join tests =
-    tests
-        |> Task.sequence
-        |> Task.map Test.concat
-
-
-{-| Wrap a non-effectful test to include it in your effectful test suite.
-
-    pure <|
-        test "test that doesn't need a task" <| \_ ->
-            Expect.equal True True
--}
-pure : Test.Test -> Test
-pure =
-    Task.succeed
-
-
-{-| Lets you wait for a task to resolve before running a test.
-
-Use this by wrapping a test from the [core test package](https://packages.gren-lang.org/package/gren-lang/test/version/latest/module/Test#Test):
-
-    await Time.now "Current time" <| \now ->
-        Test.test "is not Jan 1, 1970" <| \_ ->
-            Expect.notEqual (Time.millisToPosix 0) now
-
-If the task fails, the inner test won't run and the test suite will fail.
-If you want to test the error condition of a task, use [awaitError](#awaitError).
--}
-await : Task error a -> String -> (a -> Test.Test) -> Test
-await task description callback =
-    task
-        |> Task.map callback
-        |> Task.andThen
-            (\test ->
-                Test.describe description [ test ]
-                    |> Task.succeed
-            )
-        |> Task.onError
-            (\e -> 
-                Task.succeed <|
-                    Test.test description <| \_ ->
-                        Expect.fail ("Task failed with: " ++ Debug.toString e)
-            )
-
-
-{-| Test tasks that you expect to fail:
-
-    awaitError (Task.fail "oopsy") "An expected failure" <| \error ->
-        test "is an oopsy" \_ ->
-            Expect.equal "oopsy" error
-
-If the task does not fail, the inner test won't run and the test suite will fail.
--}
-awaitError : Task error a -> String -> (error -> Test.Test) -> Test
-awaitError task description callback =
-    task
-        |> Task.map
-            (\a ->
-                Test.test description <| \_ ->
-                    Expect.fail
-                        ( "Expected error, but got non-error value: "
-                            |> String.append (Debug.toString a)
-                        )
-            )
-        |> Task.onError (callback >> Task.succeed)
+-- UTIL
 
 
 getColorDepth : Maybe Terminal.Configuration -> Int

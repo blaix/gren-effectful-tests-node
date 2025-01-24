@@ -7,7 +7,6 @@ import FileSystem.Path as Path
 import Expect
 import Init
 import Task exposing (Task)
-import Test exposing (test)
 import Test.Runner.Effectful as Effectful exposing (..)
 import Terminal
 import Time
@@ -24,28 +23,29 @@ readTestFile permission =
 main : Effectful.Program a
 main = 
     init <| \env ->
-        Init.await FileSystem.initialize <| \fsPermission ->
-        -- You can initialize other subsystems here too:
-        -- Init.await Terminal.initialize <| \termConfig ->
+        Init.await FileSystem.initialize <| \fsPerm ->
+        -- TODO: multiple inits
+        -- Init.await HttpClient.initialize <| \httpPerm ->
 
         thenRun env <|
-            join
-                [ await (readTestFile fsPermission) "reading file" <| \contents ->
+            concat
+                [ await (readTestFile fsPerm) "reading file" <| \contents ->
                     test "returns the contents" <| \_ ->
                         Expect.equal (Just "some text\n") contents
 
-                -- join can nest
-                , join
+                , describe "Nesting a describe"
                     [ awaitError (Task.fail "failure") "Expected errors" <| \error ->
-                        Test.test "can be tested" <| \_ ->
-                            Expect.equal "failure" error
+                      await (Task.succeed "a") "nesting a" <| \a ->
+                      await (Task.succeed "b") "nesting b" <| \b ->
+                        test "nested tasks can be tested" <| \_ ->
+                            String.join " " [a, b, error ]
+                                |> Expect.equal "a b failure"
 
                     -- , await (Task.fail "oops") "Unexpected error" <| \contents ->
                     --     test "will fail the suite and skip the test" <| \_ ->
                     --         Expect.equal True True
                     
-                    , pure <|
-                        test "test that doesn't need a task" <| \_ ->
-                            Expect.equal True True
+                    , test "test that doesn't need a task" <| \_ ->
+                        Expect.equal True True
                     ]
                 ]
