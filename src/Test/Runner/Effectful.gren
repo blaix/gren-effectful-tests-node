@@ -4,9 +4,6 @@ module Test.Runner.Effectful exposing
     -- TESTS
     , Test
     , test
-    , concat
-    , describe
-    , init
 
     -- TASKS
     , await
@@ -14,10 +11,60 @@ module Test.Runner.Effectful exposing
 
     -- RUN
     , run
+    --, runWithOptions
+    , init
     , thenRun
-    -- TODO: runWithOptions
+    --, thenRunWithOptions
+
+    -- ORGANIZATION
+    , concat
+    , describe
+    --, todo
+    --, skip
+    --, only
+    
+    -- FUZZ TESTING
+    --, fuzz
+    --, fuzz2
+    --, fuzz3
     )
 
+
+{-| Effectful Test Runner
+
+A test runner that supports Tasks, letting your verify their results.
+
+See the [README](https://github.com/blaix/gren-effectful-tests-node/blob/main/README.md)
+or [example folder](https://github.com/blaix/gren-effectful-tests-node/tree/main/example)
+for usage examples.
+
+@docs Program
+
+## Tests
+
+@docs Test, test
+
+## Tasks
+
+@docs await, awaitError
+
+## Running Tests
+
+@docs run, runWithOptions
+
+## Initializing Subsystems
+
+@docs init, thenRun, thenRunWithOptions
+
+## Test Organization
+
+@docs concat, describe, todo, skip, only
+    
+## Fuzz Testing
+
+@docs fuzz, fuzz2, fuzz3
+
+-}
 
 import Expect exposing (Expectation)
 import Init
@@ -31,15 +78,37 @@ import Test.Runner.Node
 import Time
 
 
-{-| Type alias for a program that runs your effectful [Test](#Test) suite.
+{-| Type alias for a program that runs your effectful test suite.
 -}
 type alias Program a =
     Node.SimpleProgram a
 
 
-{-| Alias for a test in an effectful test suite.
+-- TESTS
 
-You can create Tests with [test](#test) and wrap them in 0 or more [await](#await)s.
+
+{-| A test in an effectful test suite.
+
+They can be created with [test](#test), [fuzz](#fuzz), or several other functions in this module:
+    
+    import Expect
+    import Test.Runner.Effectful exposing (test)
+
+    test "my test" <| \_ ->
+        Expect.equal True True
+
+The semantics are the same as a test from the
+[core test package](https://packages.gren-lang.org/package/gren-lang/test/version/latest/module/Test#test),
+except they can wrapped in one or more [await](#await) or [awaitError](#awaitError) calls to verify the outcome a 
+[Task](https://packages.gren-lang.org/package/gren-lang/core/version/latest/module/Task):
+
+    import Expect
+    import Test.Runner.Effectful exposing (await, test)
+    import Time
+
+    await Time.now "The current time" <| \now ->
+        test "is not Jan 1, 1970" <| \_ ->
+            Expect.notEqual (Time.millisToPosix 0) now
 -}
 type alias Test =
     Task Never (InternalTest {})
@@ -50,7 +119,7 @@ type InternalTest a
     | Ready Test.Test
 
 
-unwrap : InternalTest a -> Test.Test
+unwrap : InternalTest {} -> Test.Test
 unwrap internalTest =
     when internalTest is
         Ready t ->
@@ -70,23 +139,10 @@ unwrap internalTest =
                     """
 
 
--- CREATING TESTS
-
-
-{-| Create a standard test. Semantics are the same as `test` from the
-[core package](https://packages.gren-lang.org/package/gren-lang/test/version/latest/module/Test#test):
-
-    test "my test" <| \_ ->
-        Expect.equal True True
-
-except it can optionally be nested in an [await](#await):
-
-    await Time.now "The current time" <| \now ->
-        test "is not Jan 1, 1970" <| \_ ->
-            Expect.notEqual (Time.millisToPosix 0) now
-
-Note: with this runner, you must use this test function,
-not the test function from the core package.
+{-| Create a [Test](#Test).
+    
+    test "1 + 1 = 2" <| \_ ->
+        Expect.equal 2 (1 + 1)
 -}
 test : String -> ({} -> Expectation) -> Test
 test description thunk =
@@ -94,31 +150,6 @@ test description thunk =
         |> Ready
         |> Task.succeed
 
-
-{-| Group an array of [Test](#Test)s into one.
-
-Passing an empty array will result in a failing test, because you either made a mistake or are creating a placeholder.
--}
-concat : Array Test -> Test
-concat tests =
-    tests
-        |> Array.map (Task.map unwrap)
-        |> Task.sequence
-        |> Task.map Test.concat
-        |> Task.map Ready
-
-
-{-| Group an array of [Test](#Test)s with a description.
-
-Passing an empty array will result in a failing test, because you either made a mistake or are creating a placeholder.
--}
-describe : String -> Array Test -> Test
-describe description tests =
-    tests
-        |> Array.map (Task.map unwrap)
-        |> Task.sequence
-        |> Task.map (Test.describe description)
-        |> Task.map Ready
 
 
 -- RESOLVING TASKS
@@ -164,7 +195,7 @@ await task description callback =
 
 If the task does not fail, the inner test won't run and the test suite will fail.
 
-These can be nested just like and alongside [await](#await)s.
+These can be nested just like (and alongside) [await](#await) calls.
 -}
 awaitError : Task error a -> String -> (error -> Test) -> Test
 awaitError task description callback =
@@ -191,7 +222,7 @@ map fn internalTest =
             Task.succeed (Ready t)
 
 
-wrapDescription : String -> InternalTest a -> Test
+wrapDescription : String -> InternalTest {} -> Test
 wrapDescription description internalTest =
     internalTest
         |> unwrap
@@ -204,23 +235,42 @@ wrapDescription description internalTest =
 -- RUNNING TESTS
 
 
-{-| Create a program that runs your effectful [Test](#Test) suite.
+{-| Create a program that runs your effectful test suite.
 
 This will normally be used as your `main` function:
 
     main =
         run <|
             await (Task.succeed "hi") "my task" <| \val ->
-                test "my test" <| \_ ->
+                test "says hi" <| \_ ->
                     Expect.equal "hi" val
-
-Note: The test suite must be created with the test functions from this package,
-not the core test package.
 -}
 run : Test -> Program a
 run t =
     Node.defineSimpleProgram <| \env ->
         thenRun env t
+
+
+{-| Customize a test run with [Options](#Options).
+-}
+runWithOptions : Options -> Test -> Program a
+runWithOptions options t =
+    Node.defineSimpleProgram <| \env ->
+        thenRunWithOptions env options t
+
+
+{-| Options to customize your test run.
+
+    * `runs`: how many times a [fuzz](#fuzz) test is run with different inputs.
+    * `seed`: used to generate random input in fuzz tests. A test suite run with the same seed will generate the same fuzz values.
+-}
+type alias Options =
+    { runs : Int
+    , seed : Random.Seed
+    }
+
+
+-- INITIALIZING SUBSYSTEMS
 
 
 {-| Gives your test suite access to
@@ -252,19 +302,75 @@ except it takes [Node.Environment](https://packages.gren-lang.org/package/gren-l
 in addition to the test suite.
 -}
 thenRun : Node.Environment -> Test -> Init.Task (Cmd a)
-thenRun env testTask =
-    Init.await Terminal.initialize <| \termConfig ->
+thenRun env test_ =
     Init.awaitTask Time.now <| \time ->
-    Init.awaitTask testTask <| \t ->
+        let
+            options =
+                { runs = 100
+                , seed = Random.initialSeed (Time.posixToMillis time)
+                }
+        in
+        thenRunWithOptions env options test_
+
+
+{-| Like [thenRun](#thenRun) but allows you to customize with [Options](#Options).
+-}
+thenRunWithOptions : Node.Environment -> Options -> Test -> Init.Task (Cmd a)
+thenRunWithOptions env options test_ =
+    Init.await Terminal.initialize <| \termConfig ->
+    Init.awaitTask test_ <| \t ->
         Node.endSimpleProgram <|
             Log.run
                 { test = unwrap t
-                , runs = 100
+                , runs = options.runs
                 , passStream = env.stdout
                 , failStream = env.stderr
                 , colorDepth = getColorDepth termConfig 
-                , seed = Random.initialSeed (Time.posixToMillis time)
+                , seed = options.seed
                 }
+
+
+-- TEST ORGANIZATION
+
+
+{-| Group an array of [Test](#Test)s into one.
+    
+    concat
+        [ test "true is true" <| \_ ->
+            Expect.equal True True
+        , test "false is false" <| \_ ->
+            Expect.equal False False
+        ]
+-}
+concat : Array Test -> Test
+concat tests =
+    tests
+        |> Array.map (Task.map unwrap)
+        |> Task.sequence
+        |> Task.map Test.concat
+        |> Task.map Ready
+
+
+{-| Group an array of [Test](#Test)s with a description.
+
+    describe "Truisms"
+        [ test "true is true" <| \_ ->
+            Expect.equal True True
+        , test "false is false" <| \_ ->
+            Expect.equal False False
+        ]
+-}
+describe : String -> Array Test -> Test
+describe description tests =
+    tests
+        |> Array.map (Task.map unwrap)
+        |> Task.sequence
+        |> Task.map (Test.describe description)
+        |> Task.map Ready
+
+
+-- FUZZ TESTING
+
 
 
 -- UTIL
