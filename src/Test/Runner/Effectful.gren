@@ -50,19 +50,19 @@ for usage examples.
 
 ## Running Tests
 
-@docs run, runWithOptions
+@docs run
 
 ## Initializing Subsystems
 
-@docs init, thenRun, thenRunWithOptions
+@docs init, thenRun
 
 ## Test Organization
 
-@docs concat, describe, todo, skip, only
+@docs concat, describe
     
 ## Fuzz Testing
 
-@docs fuzz, fuzz2, fuzz3
+TODO
 
 -}
 
