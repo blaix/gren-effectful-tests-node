@@ -11,10 +11,7 @@ module Test.Runner.Effectful exposing
 
     -- RUN
     , run
-    --, runWithOptions
-    , init
-    , thenRun
-    --, thenRunWithOptions
+    , runWithOptions
 
     -- ORGANIZATION
     , concat
@@ -68,7 +65,7 @@ TODO
 
 import Expect exposing (Expectation)
 import Init
-import Node
+import Node 
 import Random
 import Task exposing (Task)
 import Terminal
@@ -237,72 +234,20 @@ wrapDescription description internalTest =
 
 {-| Create a program that runs your effectful test suite.
 
-This will normally be used as your `main` function:
+The result of this function should be passed to 
+[Node.defineSimpleProgram](https://packages.gren-lang.org/package/gren-lang/node/version/latest/module/Node#defineSimpleProgram)
+as part of your `main` function:
 
     main =
-        run <|
-            await (Task.succeed "hi") "my task" <| \val ->
-                test "says hi" <| \_ ->
-                    Expect.equal "hi" val
+        Node.defineSimpleProgram <|
+            run <|
+                await (Task.succeed "hi") "my task" <| \val ->
+                    test "says hi" <| \_ ->
+                        Expect.equal "hi" val
+
 -}
-run : Test -> Program a
-run t =
-    Node.defineSimpleProgram <| \env ->
-        thenRun env t
-
-
-{-| Customize a test run with [Options](#Options).
--}
-runWithOptions : Options -> Test -> Program a
-runWithOptions options t =
-    Node.defineSimpleProgram <| \env ->
-        thenRunWithOptions env options t
-
-
-{-| Options to customize your test run.
-
-    * `runs`: how many times a [fuzz](#fuzz) test is run with different inputs.
-    * `seed`: used to generate random input in fuzz tests. A test suite run with the same seed will generate the same fuzz values.
--}
-type alias Options =
-    { runs : Int
-    , seed : Random.Seed
-    }
-
-
--- INITIALIZING SUBSYSTEMS
-
-
-{-| Gives your test suite access to
-[Node.Environment](https://packages.gren-lang.org/package/gren-lang/node/version/latest/module/Node#Environment)
-and [subsystem permissions](https://packages.gren-lang.org/package/gren-lang/node/version/latest/module/Init).
-
-This call will wrap your test suite, which will need to be run with
-[thenRun](#thenRun) instead of [run](#run). For example:
-
-    main =
-        init <| \env ->
-            FileSystem.initialize <| \fsPerm ->
-            HttpClient.initialize <| \httpPerm ->
-                thenRun env <|
-                    await (myReadTask fsPerm) "read file" <| \contents ->
-                    await (myHttpTask httpPerm) "send contents" <| \response ->
-                        test "is successfull" <| \_ ->
-                            Expect.equal 200 response.statusCode
--}
-init : (Node.Environment -> Init.Task (Cmd a)) -> Program a
-init =
-    Node.defineSimpleProgram
-
-
-{-| Define the [Test](#Test) suite that should run after initializing subsystems.
-
-The semantics of this functino are equivalent to [run](#run),
-except it takes [Node.Environment](https://packages.gren-lang.org/package/gren-lang/node/version/latest/module/Node#Environment)
-in addition to the test suite.
--}
-thenRun : Node.Environment -> Test -> Init.Task (Cmd a)
-thenRun env test_ =
+run : Node.Environment -> Test -> Init.Task (Cmd a)
+run env t =
     Init.awaitTask Time.now <| \time ->
         let
             options =
@@ -310,13 +255,13 @@ thenRun env test_ =
                 , seed = Random.initialSeed (Time.posixToMillis time)
                 }
         in
-        thenRunWithOptions env options test_
+        runWithOptions env options t
 
 
-{-| Like [thenRun](#thenRun) but allows you to customize with [Options](#Options).
+{-| Customize a test run with [Options](#Options).
 -}
-thenRunWithOptions : Node.Environment -> Options -> Test -> Init.Task (Cmd a)
-thenRunWithOptions env options test_ =
+runWithOptions : Node.Environment -> Options -> Test -> Init.Task (Cmd a)
+runWithOptions env options test_ =
     Init.await Terminal.initialize <| \termConfig ->
     Init.awaitTask test_ <| \t ->
         Node.endSimpleProgram <|
@@ -328,6 +273,17 @@ thenRunWithOptions env options test_ =
                 , colorDepth = getColorDepth termConfig 
                 , seed = options.seed
                 }
+
+
+{-| Options to customize your test run.
+
+    * `runs`: how many times a [fuzz](#fuzz) test is run with different inputs.
+    * `seed`: used to generate random input in fuzz tests. A test suite run with the same seed will generate the same fuzz values.
+-}
+type alias Options =
+    { runs : Int
+    , seed : Random.Seed
+    }
 
 
 -- TEST ORGANIZATION

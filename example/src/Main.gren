@@ -6,6 +6,7 @@ import FileSystem
 import FileSystem.Path as Path
 import Expect
 import Init
+import Node
 import Task exposing (Task)
 import Test.Runner.Effectful as Effectful exposing (..)
 import Terminal
@@ -22,30 +23,29 @@ readTestFile permission =
 
 main : Effectful.Program a
 main = 
-    init <| \env ->
+    Node.defineSimpleProgram <| \env ->
         Init.await FileSystem.initialize <| \fsPerm ->
         -- TODO: multiple inits
         -- Init.await HttpClient.initialize <| \httpPerm ->
+            run env <|
+                concat
+                    [ await (readTestFile fsPerm) "reading file" <| \contents ->
+                        test "returns the contents" <| \_ ->
+                            Expect.equal (Just "some text\n") contents
 
-        thenRun env <|
-            concat
-                [ await (readTestFile fsPerm) "reading file" <| \contents ->
-                    test "returns the contents" <| \_ ->
-                        Expect.equal (Just "some text\n") contents
+                    , describe "Nesting a describe"
+                        [ awaitError (Task.fail "failure") "Expected errors" <| \error ->
+                          await (Task.succeed "a") "nesting a" <| \a ->
+                          await (Task.succeed "b") "nesting b" <| \b ->
+                            test "nested tasks can be tested" <| \_ ->
+                                String.join " " [a, b, error ]
+                                    |> Expect.equal "a b failure"
 
-                , describe "Nesting a describe"
-                    [ awaitError (Task.fail "failure") "Expected errors" <| \error ->
-                      await (Task.succeed "a") "nesting a" <| \a ->
-                      await (Task.succeed "b") "nesting b" <| \b ->
-                        test "nested tasks can be tested" <| \_ ->
-                            String.join " " [a, b, error ]
-                                |> Expect.equal "a b failure"
-
-                    -- , await (Task.fail "oops") "Unexpected error" <| \contents ->
-                    --     test "will fail the suite and skip the test" <| \_ ->
-                    --         Expect.equal True True
-                    
-                    , test "test that doesn't need a task" <| \_ ->
-                        Expect.equal True True
+                        -- , await (Task.fail "oops") "Unexpected error" <| \contents ->
+                        --     test "will fail the suite and skip the test" <| \_ ->
+                        --         Expect.equal True True
+                        
+                        , test "test that doesn't need a task" <| \_ ->
+                            Expect.equal True True
+                        ]
                     ]
-                ]
