@@ -313,8 +313,11 @@ describe description tests =
 
 The behavior and API mirrors [`todo` from the core test package](https://packages.gren-lang.org/package/gren-lang/test/version/latest/module/Test#todo).
 -}
-todo : String
-todo = Debug.todo "implement me"
+todo : String -> Test
+todo description =
+    Test.todo description
+        |> Ready
+        |> Task.succeed
 
 
 -- FUZZ TESTING
