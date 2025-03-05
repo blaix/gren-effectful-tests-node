@@ -12,12 +12,13 @@ module Test.Runner.Effectful exposing
     -- RUN
     , run
     , runWithOptions
+    , Options
 
     -- ORGANIZATION
     , concat
     , describe
-    --, todo
-    --, skip
+    , todo
+    -- , skip
     --, only
     
     -- FUZZ TESTING
@@ -27,35 +28,23 @@ module Test.Runner.Effectful exposing
     )
 
 
-{-| Effectful Test Runner
-
-A test runner that supports Tasks, letting your verify their results.
-
-See the [README](https://github.com/blaix/gren-effectful-tests-node/blob/main/README.md)
-or [example folder](https://github.com/blaix/gren-effectful-tests-node/tree/main/example)
-for usage examples.
-
-@docs Program
-
-## Tests
-
-@docs Test, test
-
-## Tasks
-
-@docs await, awaitError
+{-| A test runner that supports running Tasks.
 
 ## Running Tests
 
-@docs run
+@docs run, runWithOptions, Options, Program
 
-## Initializing Subsystems
+## Awaiting Tasks
 
-@docs init, thenRun
+@docs await, awaitError
+
+## Defining Tests
+
+@docs Test, test
 
 ## Test Organization
 
-@docs concat, describe
+@docs concat, describe, todo
     
 ## Fuzz Testing
 
@@ -137,9 +126,6 @@ unwrap internalTest =
 
 
 {-| Create a [Test](#Test).
-    
-    test "1 + 1 = 2" <| \_ ->
-        Expect.equal 2 (1 + 1)
 -}
 test : String -> ({} -> Expectation) -> Test
 test description thunk =
@@ -180,7 +166,6 @@ await task description callback =
                     |> Task.succeed
             )
         |> Task.andThen (map callback)
-        -- TODO: am I double wrapping description?
         |> Task.andThen (wrapDescription description)
 
 
@@ -206,7 +191,6 @@ awaitError task description callback =
                     |> Task.succeed
             )
         |> Task.onError callback
-        -- TODO: am I double wrapping description?
         |> Task.andThen (wrapDescription description)
 
 
@@ -232,7 +216,7 @@ wrapDescription description internalTest =
 -- RUNNING TESTS
 
 
-{-| Create a program that runs your effectful test suite.
+{-| Run your effectful test suite.
 
 The result of this function should be passed to 
 [Node.defineSimpleProgram](https://packages.gren-lang.org/package/gren-lang/node/version/latest/module/Node#defineSimpleProgram)
@@ -277,8 +261,8 @@ runWithOptions env options test_ =
 
 {-| Options to customize your test run.
 
-    * `runs`: how many times a [fuzz](#fuzz) test is run with different inputs.
-    * `seed`: used to generate random input in fuzz tests. A test suite run with the same seed will generate the same fuzz values.
+* `runs`: how many times a [fuzz](#fuzz) test is run with different inputs.
+* `seed`: used to generate random input in [fuzz](#fuzz) tests. A test suite run with the same seed will generate the same fuzz values.
 -}
 type alias Options =
     { runs : Int
@@ -323,6 +307,14 @@ describe description tests =
         |> Task.sequence
         |> Task.map (Test.describe description)
         |> Task.map Ready
+
+
+{-| Create a [Test](#Test) that is a "TODO" (not yet implemented).
+
+The behavior and API mirrors [`todo` from the core test package](https://packages.gren-lang.org/package/gren-lang/test/version/latest/module/Test#todo).
+-}
+todo : String
+todo = Debug.todo "implement me"
 
 
 -- FUZZ TESTING

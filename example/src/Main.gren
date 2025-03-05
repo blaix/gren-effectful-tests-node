@@ -41,9 +41,9 @@ main =
                                 String.join " " [a, b, error ]
                                     |> Expect.equal "a b failure"
 
-                        -- , await (Task.fail "oops") "Unexpected error" <| \contents ->
-                        --     test "will fail the suite and skip the test" <| \_ ->
-                        --         Expect.equal True True
+                        , await (Task.fail "oops") "Unexpected error" <| \contents ->
+                            test "will fail the suite and skip the test" <| \_ ->
+                                Expect.equal True True
                         
                         , test "test that doesn't need a task" <| \_ ->
                             Expect.equal True True

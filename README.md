@@ -14,15 +14,16 @@ cd tests
 gren init --platform=node
 ```
 
-Install the necessary packages:
+Install the package:
 
 ```sh
-gren package install gren-lang/test
 gren package install blaix/gren-effectful-tests-node
 ```
 
 Create a `src/Main.gren` with your tests.
-See the [examples below](#Examples) or the working example [in the repo](https://github.com/blaix/gren-effectful-tests-node/blob/main/example/src/Main.gren)
+See the [examples below](#Examples),
+the working example [in the repo](https://github.com/blaix/gren-effectful-tests-node/blob/main/example/src/Main.gren),
+or [the package docs](https://packages.gren-lang.org/package/blaix/gren-effectful-tests-node)
 for how to do that.
 
 Then compile and run your tests:
@@ -34,121 +35,85 @@ node app
 
 ## Examples
 
+Your test runner should be a [Node.SimpleProgram](https://packages.gren-lang.org/package/gren-lang/node/version/latest/module/Node#defineSimpleProgram)
+that calls the `run` on your test suite.
+
 This package provides wrappers for the normal [gren-lang/test](https://packages.gren-lang.org/package/gren-lang/test)
-functions, so you have access to the full gren test API.
+functions to define your test suite.
+Plus additional functions like `await` that let you resolve tasks.
 
 ### Basic test
 
-The basic functions you'll need to write a test that waits for a task are
-[run](https://packages.gren-lang.org/package/blaix/gren-effectful-tests-node/version/latest/module/Test.Runner.Effectful#run) and [await](https://packages.gren-lang.org/package/blaix/gren-effectful-tests-node/version/latest/module/Test.Runner.Effectful#await)
-
-In the body of the await callback,
-you can construct a test using any of the functions in the 
-[gren-lang/test](https://packages.gren-lang.org/package/gren-lang/test) package.
+A basic test that awaits a task:
 
 ```elm
 import Expect
-import Test exposing (test)
-import Test.Runner.Effectful exposing (run, await)
+import Test.Runner.Effectful exposing (run, test, await)
 import Time
 
+main : Effectful.Program a
 main = 
-    run <|
-        await Time.now "the current time" <| \now ->
-            test "is not Jan 1, 1970" <| \_ ->
-                Expect.notEqual (Time.millisToPosix 0) now
+    Node.defineSimpleProgram <| \env ->
+        run env <|
+            await Time.now "the current time" <| \now ->
+                test "is not Jan 1, 1970" <| \_ ->
+                    Expect.notEqual (Time.millisToPosix 0) now
 ```
 
 ### Errors
 
-If you try to [await](https://packages.gren-lang.org/package/blaix/gren-effectful-tests-node/version/latest/module/Test.Runner.Effectful#await)
-a task that fails, the test run will fail.
+If you try to await a task that fails, the test run will fail.
 
-If you want to explicitly test the failure condition,
-use [awaitError](https://packages.gren-lang.org/package/blaix/gren-effectful-tests-node/version/latest/module/Test.Runner.Effectful#await):
+If you want to explicitly test the failure condition, use `awaitError`:
 
 ```elm
 import Expect
-import Test exposing (test)
-import Test.Runner.Effectful exposing (run, awaitError)
+import Test.Runner.Effectful exposing (run, test, awaitError)
 
+main : Effectful.Program a
 main = 
-    run <|
-        awaitError (Task.fail "oopsy") "task that I expect to fail" <| \error ->
-            test "is an oopsy" <| \_ ->
-                Expect.equal "oopsy" error
+    Node.defineSimpleProgram <| \env ->
+        run env <|
+            awaitError (Task.fail "oopsy") "task that I expect to fail" <| \error ->
+                test "is an oopsy" <| \_ ->
+                    Expect.equal "oopsy" error
 ```
 
-### Running multiple tests
+### Nested awaits
 
-You can run an array of effectful tests with 
-[join](https://packages.gren-lang.org/package/blaix/gren-effectful-tests-node/version/latest/module/Test.Runner.Effectful#join):
+You can nest awaits as deep as you need:
 
-
-```elm
-import Expect
-import Test exposing (test)
-import Test.Runner.Effectful exposing (run, await, join)
-import Time
-
-main = 
-    run <|
-        join
-            [ await Time.now "the current time" <| \now ->
-                test "is not Jan 1, 1970" <| \_ ->
-                    Expect.notEqual (Time.millisToPosix 0) now
-            , await (Task.succeed "hey") "my other task" <| \val ->
-                test "is the expected value" <| \_ ->
-                    Expect.equal "hey" val
-            ]
+```
+run env <|
+    await (Task.succeed "a") "task a" <| \a ->
+    await (Task.succeed "b") "task b" <| \b ->
+    awaitError (Task.fail "failure") "failed task" <| \error ->
+        test "nested tasks" <| \_ ->
+            Expect.equalArrays
+                [ "a", "b", "error" ]
+                [ a, b, error ]
 ```
 
-You can also include arrays of non-effectful tests with functions from the core test package
-like [concat](https://packages.gren-lang.org/package/gren-lang/test/version/latest/module/Test#concat)
-and [describe](https://packages.gren-lang.org/package/gren-lang/test/version/latest/module/Test#describe):
+### Subsystems
 
-
-```elm
-import Expect
-import Test exposing (describe, test)
-import Test.Runner.Effectful exposing (run, await)
-
-main = 
-    run <|
-        await (Task.succeed "hello") "my task" <| \resolved ->
-            describe "tests for my task"
-                [ test "resolves to hello" <| \_ ->
-                    Expect.equal "hello" resolved
-                , test "is not goodbye" <| \_ ->
-                    Expect.notEqual "goodbye" resolved
-                ]
-```
-
-### Node Environment and Subsystems
-
-If your tasks need access to [Node.Environment](https://packages.gren-lang.org/package/gren-lang/node/version/latest/module/Node#Environment)
-or [subsystem permissions](https://packages.gren-lang.org/package/gren-lang/node/version/latest/module/Init)
-you can use [init](https://packages.gren-lang.org/package/blaix/gren-effectful-tests-node/version/latest/module/Test.Runner.Effectful#init)
-and [thenRun](https://packages.gren-lang.org/package/blaix/gren-effectful-tests-node/version/latest/module/Test.Runner.Effectful#thenRun):
+Because your runner is a normal gren node program, you have access toIf your tasks need access to 
+[subsystem permissions](https://packages.gren-lang.org/package/gren-lang/node/version/latest/module/Init)
+if you need them:
 
 ```elm
 import Bytes
 import Expect
 import FileSystem
-import Test exposing (test)
-import Test.Runner.Effectful exposing (init, thenRun, join, await)
+import Test.Runner.Effectful exposing (run, describe, test, await)
 
 
+main : Effectful.Program a
 main = 
-    init <| \env ->
-    
-        -- Initialize subsystems here:
+    Node.defineSimpleProgram <| \env ->
         Init.await FileSystem.initialize <| \fsPerm->
         Init.await ChildProcess.initialize <| \processPerm ->
-        
-            -- Then run your test suite like normal here:
-            thenRun env <|
-                join
+            run env <|
+                describe "my effectful tests"
                     [ await (readTestFile fsPerm) "reading test.txt" <| \contents ->
                         test "resolves to contents of file" <| \_ ->
                             Expect.equal (Just "some text\n") content
