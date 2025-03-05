@@ -101,7 +101,7 @@ type alias Test =
 
 
 type InternalTest a
-    = Box a
+    = NotReady a
     | Ready Test.Test
 
 
@@ -110,7 +110,7 @@ unwrap internalTest =
     when internalTest is
         Ready t ->
             t
-        Box _ ->
+        NotReady _ ->
             -- This should never happen...
             -- Any way to refactor it away?
             Test.test "Unexpected error" <| \_ ->
@@ -157,7 +157,7 @@ You can nest as many awaits as you want:
 await : Task error a -> String -> (a -> Test) -> Test
 await task description callback =
     task
-        |> Task.map Box
+        |> Task.map NotReady
         |> Task.onError 
             (\e -> 
                 (\_ -> Expect.fail ("Task failed with: " ++ (Debug.toString e)))
@@ -182,7 +182,7 @@ These can be nested just like (and alongside) [await](#await) calls.
 awaitError : Task error a -> String -> (error -> Test) -> Test
 awaitError task description callback =
     task
-        |> Task.map Box
+        |> Task.map NotReady
         |> Task.andThen 
             (\a -> 
                 (\_ -> Expect.fail ("Expected error, but got non-error value: " ++ (Debug.toString a)))
@@ -197,7 +197,7 @@ awaitError task description callback =
 map : (a -> Test) -> InternalTest a -> Test
 map fn internalTest =
     when internalTest is
-        Box a ->
+        NotReady a ->
             fn a
         Ready t ->
             Task.succeed (Ready t)
