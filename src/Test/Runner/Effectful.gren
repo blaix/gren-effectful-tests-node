@@ -18,7 +18,7 @@ module Test.Runner.Effectful exposing
     , concat
     , describe
     , todo
-    -- , skip
+    , skip
     --, only
     
     -- FUZZ TESTING
@@ -44,7 +44,7 @@ module Test.Runner.Effectful exposing
 
 ## Test Organization
 
-@docs concat, describe, todo
+@docs concat, describe, todo, skip
     
 ## Fuzz Testing
 
@@ -318,6 +318,15 @@ todo description =
     Test.todo description
         |> Ready
         |> Task.succeed
+
+
+{-| Create a [Test](#Test) that gets skipped.
+
+The behavior and API mirrors [`skip` from the core test package](https://packages.gren-lang.org/package/gren-lang/test/version/latest/module/Test#skip).
+-}
+skip : Test -> Test
+skip =
+    Task.map (unwrap >> Test.skip >> Ready)
 
 
 -- FUZZ TESTING
