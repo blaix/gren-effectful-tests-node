@@ -160,8 +160,8 @@ await task description callback =
         |> Task.map NotReady
         |> Task.onError 
             (\e -> 
-                (\_ -> Expect.fail ("Task failed with: " ++ (Debug.toString e)))
-                    |> Test.test description
+                (\_ -> Expect.fail (Debug.toString e))
+                    |> Test.test "Task failed with:"
                     |> Ready
                     |> Task.succeed
             )
