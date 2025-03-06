@@ -19,12 +19,12 @@ module Test.Runner.Effectful exposing
     , describe
     , todo
     , skip
-    --, only
+    , only
     
     -- FUZZ TESTING
-    --, fuzz
-    --, fuzz2
-    --, fuzz3
+    , fuzz
+    , fuzz2
+    , fuzz3
     )
 
 
@@ -44,15 +44,16 @@ module Test.Runner.Effectful exposing
 
 ## Test Organization
 
-@docs concat, describe, todo, skip
+@docs concat, describe, todo, skip, only
     
 ## Fuzz Testing
 
-TODO
+@docs fuzz, fuzz2, fuzz3
 
 -}
 
 import Expect exposing (Expectation)
+import Fuzz exposing (Fuzzer)
 import Init
 import Node 
 import Random
@@ -329,8 +330,49 @@ skip =
     Task.map (unwrap >> Test.skip >> Ready)
 
 
+{-| Create a [Test](#Test) that causes other tests to be skipped, and only runs the given one.
+
+The behavior and API mirrors [`only` from the core test package](https://packages.gren-lang.org/package/gren-lang/test/version/latest/module/Test#only).
+-}
+only : Test -> Test
+only =
+    Task.map (unwrap >> Test.only >> Ready)
+
+
 -- FUZZ TESTING
 
+
+{-| Create a "fuzz test".
+
+The behavior and API mirrors [`fuzz` from the core test package](https://packages.gren-lang.org/package/gren-lang/test/version/latest/module/Test#fuzz).
+-}
+fuzz : Fuzzer a -> String -> (a -> Expectation) -> Test
+fuzz fuzzer description thunk =
+    Test.fuzz fuzzer description thunk
+        |> Ready
+        |> Task.succeed
+
+
+{-| Create a "fuzz test" using two random inputs.
+
+The behavior and API mirrors [`fuzz2` from the core test package](https://packages.gren-lang.org/package/gren-lang/test/version/latest/module/Test#fuzz2).
+-}
+fuzz2 : Fuzzer a -> Fuzzer b -> String -> (a -> b -> Expectation) -> Test
+fuzz2 fuzzerA fuzzerB description thunk =
+    Test.fuzz2 fuzzerA fuzzerB description thunk
+        |> Ready
+        |> Task.succeed
+
+
+{-| Create a "fuzz test" using three random inputs.
+
+The behavior and API mirrors [`fuzz3` from the core test package](https://packages.gren-lang.org/package/gren-lang/test/version/latest/module/Test#fuzz3).
+-}
+fuzz3 : Fuzzer a -> Fuzzer b -> Fuzzer c -> String -> (a -> b -> c -> Expectation) -> Test
+fuzz3 fuzzerA fuzzerB fuzzerC description thunk =
+    Test.fuzz3 fuzzerA fuzzerB fuzzerC description thunk
+        |> Ready
+        |> Task.succeed
 
 
 -- UTIL

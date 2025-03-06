@@ -4,6 +4,7 @@ module Main exposing (main)
 import Bytes
 import FileSystem
 import FileSystem.Path as Path
+import Fuzz exposing (array, int)
 import Expect
 import Init
 import Node
@@ -42,11 +43,29 @@ main =
                                     |> Expect.equal "a b failure"
 
                         -- , todo "testing todo"
-                        , skip <| await (Task.fail "oops") "Unexpected error" <| \contents ->
-                            test "will fail the suite and skip the test" <| \_ ->
-                                Expect.equal True True
+                        -- , await (Task.fail "oops") "Unexpected error" <| \contents ->
+                        --     test "will fail the suite and skip the test" <| \_ ->
+                        --         Expect.equal True True
                         
                         , test "test that doesn't need a task" <| \_ ->
                             Expect.equal True True
+
+                        , fuzz (array int) "Array.length should never be negative" <| \fuzzArray ->
+                            fuzzArray
+                                |> Array.length
+                                |> Expect.atLeast 0
+                                
+                        , fuzz2 (array int) (array int) "Two Array lengths should never be negative" <| \array1 array2 ->
+                            array1
+                                |> Array.append array2
+                                |> Array.length
+                                |> Expect.atLeast 0
+                                
+                        , fuzz3 (array int) (array int) (array int) "Three Array lengths should never be negative" <| \array1 array2 array3 ->
+                            array1
+                                |> Array.append array2
+                                |> Array.append array3
+                                |> Array.length
+                                |> Expect.atLeast 0
                         ]
                     ]
