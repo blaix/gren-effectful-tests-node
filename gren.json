@@ -4,7 +4,7 @@
     "name": "blaix/gren-effectful-tests-node",
     "summary": "Run Gren tests with effects on node",
     "license": "BSD-3-Clause",
-    "version": "3.0.0",
+    "version": "4.0.0",
     "exposed-modules": [
         "Test.Runner.Effectful"
     ],
