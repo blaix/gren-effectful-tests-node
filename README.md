@@ -36,7 +36,7 @@ node app
 ## Examples
 
 Your test runner should be a [Node.SimpleProgram](https://packages.gren-lang.org/package/gren-lang/node/version/latest/module/Node#defineSimpleProgram)
-that calls the `run` on your test suite.
+that calls `run` on your test suite.
 
 This package provides wrappers for the normal [gren-lang/test](https://packages.gren-lang.org/package/gren-lang/test)
 functions to define your test suite.
@@ -74,7 +74,7 @@ main : Effectful.Program a
 main = 
     Node.defineSimpleProgram <| \env ->
         run env <|
-            awaitError (Task.fail "oopsy") "task that I expect to fail" <| \error ->
+            awaitError (Task.fail "oopsy") "expected failure" <| \error ->
                 test "is an oopsy" <| \_ ->
                     Expect.equal "oopsy" error
 ```
@@ -96,7 +96,7 @@ run env <|
 
 ### Subsystems
 
-Because your runner is a normal gren node program, you have access toIf your tasks need access to 
+Because your runner is a normal gren node program, you have access to 
 [subsystem permissions](https://packages.gren-lang.org/package/gren-lang/node/version/latest/module/Init)
 if you need them:
 
