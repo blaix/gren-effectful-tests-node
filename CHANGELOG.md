@@ -1,3 +1,7 @@
+## 4.0.1 (2025-03-10)
+
+* Fix duplicate test name bug with `awaitError` ([#4](https://github.com/blaix/gren-effectful-tests-node/issues/4))
+
 ## 4.0.0 (2025-03-05)
 
 * Reworked package to:
