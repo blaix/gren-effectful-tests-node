@@ -43,7 +43,10 @@ main =
                                     |> Expect.equal "a b failure"
 
                         -- , todo "testing todo"
-                        -- , await (Task.fail "oops") "Unexpected error" <| \contents ->
+                        -- , await (Task.fail "oops") "Unexpected error" <| \_ ->
+                        --     test "will fail the suite and skip the test" <| \_ ->
+                        --         Expect.equal True True
+                        -- , awaitError (Task.succeed "oops") "Unexpected success" <| \_ ->
                         --     test "will fail the suite and skip the test" <| \_ ->
                         --         Expect.equal True True
                         

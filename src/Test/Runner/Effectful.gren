@@ -183,11 +183,10 @@ These can be nested just like (and alongside) [await](#await) calls.
 awaitError : Task error a -> String -> (error -> Test) -> Test
 awaitError task description callback =
     task
-        |> Task.map NotReady
         |> Task.andThen 
             (\a -> 
-                (\_ -> Expect.fail ("Expected error, but got non-error value: " ++ (Debug.toString a)))
-                    |> Test.test description
+                (\_ -> Expect.fail (Debug.toString a))
+                    |> Test.test "Expected error, but got a non-error value:"
                     |> Ready
                     |> Task.succeed
             )
