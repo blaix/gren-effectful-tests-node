@@ -48,6 +48,7 @@ A basic test that awaits a task:
 
 ```elm
 import Expect
+import Node
 import Test.Runner.Effectful exposing (run, test, await)
 import Time
 
