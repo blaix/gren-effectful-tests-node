@@ -9,6 +9,7 @@ import Expect
 import Init
 import Node
 import Task exposing (Task)
+import Test
 import Test.Runner.Effectful as Effectful exposing (..)
 import Terminal
 import Time
@@ -51,6 +52,9 @@ main =
                         --         Expect.equal True True
                         
                         , test "test that doesn't need a task" <| \_ ->
+                            Expect.equal True True
+
+                        , wrap <| Test.test "wrapping a core test" <| \_ ->
                             Expect.equal True True
 
                         , fuzz (array int) "Array.length should never be negative" <| \fuzzArray ->

@@ -4,6 +4,7 @@ module Test.Runner.Effectful exposing
     -- TESTS
     , Test
     , test
+    , wrap
 
     -- TASKS
     , await
@@ -40,7 +41,7 @@ module Test.Runner.Effectful exposing
 
 ## Defining Tests
 
-@docs Test, test
+@docs Test, test, wrap
 
 ## Test Organization
 
@@ -131,9 +132,16 @@ unwrap internalTest =
 test : String -> ({} -> Expectation) -> Test
 test description thunk =
     Test.test description thunk
+        |> wrap
+
+
+{-| Wrap a test from the core test library.
+-}
+wrap : Test.Test -> Test
+wrap test_ =
+    test_
         |> Ready
         |> Task.succeed
-
 
 
 -- RESOLVING TASKS

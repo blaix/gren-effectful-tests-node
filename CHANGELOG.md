@@ -1,3 +1,7 @@
+## 4.1.0 (2025-03-27)
+
+* Add `wrap` to wrap a test from the core test library
+
 ## 4.0.1 (2025-03-10)
 
 * Fix duplicate test name bug with `awaitError` ([#4](https://github.com/blaix/gren-effectful-tests-node/issues/4))
