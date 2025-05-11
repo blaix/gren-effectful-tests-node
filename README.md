@@ -84,7 +84,7 @@ main =
 
 You can nest awaits as deep as you need:
 
-```
+```elm
 run env <|
     await (Task.succeed "a") "task a" <| \a ->
     await (Task.succeed "b") "task b" <| \b ->
