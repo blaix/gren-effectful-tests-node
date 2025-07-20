@@ -54,8 +54,8 @@ run { passStream, failStream, colorDepth, runs, seed, test } =
                 }
     in
     Stream.writeLineAsBytes output stream
-        |> Task.andThen (\_ -> Node.exitWithCode exitCode)
-        |> Task.onError (\_ -> Node.exitWithCode 1)
+        |> Task.andThen (\_ -> Node.setExitCode exitCode)
+        |> Task.onError (\_ -> Node.setExitCode 1)
  
 
 summarize : Summary -> Int -> String

@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.13.6/.schema/devbox.schema.json",
   "packages": [
-    "github:gren-lang/nix/0.5.2",
+    "github:gren-lang/nix/0.6.0",
     "nodejs@20",
     "entr@latest",
     "just@latest"

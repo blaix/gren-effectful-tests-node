@@ -1,3 +1,7 @@
+## 5.0.0 (2025-07-20)
+
+* Upgrade to Gren 0.6
+
 ## 4.1.0 (2025-03-27)
 
 * Add `wrap` to wrap a test from the core test library

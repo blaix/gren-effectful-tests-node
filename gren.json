@@ -2,17 +2,17 @@
     "type": "package",
     "platform": "node",
     "name": "blaix/gren-effectful-tests-node",
-    "summary": "Run Gren tests with effects on node",
+    "summary": "Run Gren tests that can verify side effects",
     "license": "BSD-3-Clause",
-    "version": "4.1.0",
+    "version": "5.0.0",
     "exposed-modules": [
         "Test.Runner.Effectful"
     ],
-    "gren-version": "0.5.2 <= v < 0.6.0",
+    "gren-version": "0.6.0 <= v < 0.7.0",
     "dependencies": {
-        "gren-lang/core": "6.0.1 <= v < 7.0.0",
-        "gren-lang/node": "5.0.0 <= v < 6.0.0",
-        "gren-lang/test": "4.1.0 <= v < 5.0.0",
-        "gren-lang/test-runner-node": "6.0.0 <= v < 7.0.0"
+        "gren-lang/core": "7.0.0 <= v < 8.0.0",
+        "gren-lang/node": "6.0.0 <= v < 7.0.0",
+        "gren-lang/test": "5.0.0 <= v < 6.0.0",
+        "gren-lang/test-runner-node": "7.0.0 <= v < 8.0.0"
     }
 }

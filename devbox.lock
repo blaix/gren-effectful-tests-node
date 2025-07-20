@@ -52,8 +52,9 @@
     "github:NixOS/nixpkgs/nixpkgs-unstable": {
       "resolved": "github:NixOS/nixpkgs/25d1b84f5c90632a623c48d83a2faf156451e6b1?lastModified=1742923925&narHash=sha256-biPjLws6FiBVUUDHEMFq5pUQL84Wf7PntPYdo3oKkFw%3D"
     },
-    "github:gren-lang/nix/0.5.2": {
-      "resolved": "github:gren-lang/nix/7998732cd4878c7b121b4ebb2d9929b0b635f9b9?lastModified=1736597972&narHash=sha256-s40gUeBIqhG1WdcXyNAZsebAVgEOivMhleofe4%2BmbvM%3D"
+    "github:gren-lang/nix/0.6.0": {
+      "last_modified": "2025-07-20T08:41:19Z",
+      "resolved": "github:gren-lang/nix/ca77de0a436fddc6299dd5287b5aa3e3ea642b0f?lastModified=1753000879&narHash=sha256-COLL9CqAuVC%2FZxArQdm3G0NfNQDEGtWbiq7p5%2BgaGPY%3D"
     },
     "just@latest": {
       "last_modified": "2025-03-20T07:39:01Z",
