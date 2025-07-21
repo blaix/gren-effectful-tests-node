@@ -1,3 +1,10 @@
+# PACKAGE RENAME
+
+This package was renamed to
+[gren-effectful-tests](https://github.com/blaix/gren-effectful-tests).
+
+Below is the README for the last version under the old name:
+
 # Gren Effectful Test Runner
 
 Run [Gren](https://gren-lang.org/) integration tests that depend on the actual results of [tasks](https://gren-lang.org/book/applications/tasks/).

@@ -1,3 +1,9 @@
+## 5.0.1 (2025-07-21)
+
+* Add note to readme about package rename.
+  Further versions will be released under
+  [gren-effectful-tests](https://github.com/blaix/gren-effectful-tests).
+
 ## 5.0.0 (2025-07-20)
 
 * Upgrade to Gren 0.6
